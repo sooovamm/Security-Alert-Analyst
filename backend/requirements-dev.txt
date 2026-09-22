@@ -1,0 +1,6 @@
+# Test and lint tooling (not installed in the production image).
+-r requirements.txt
+pytest~=8.3
+httpx~=0.27
+ruff~=0.6
+mypy~=1.11
