@@ -23,7 +23,7 @@ real output.
 ## Preparation (do this before the room)
 
 ```bash
-cd security-alert-analyst
+cd Security-Alert-Analyst
 cp .env.example .env          # add LLM_API_KEY
 docker compose up -d --build  # first build ≈ 2 min — do NOT do this live
 ```

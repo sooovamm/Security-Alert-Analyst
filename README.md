@@ -334,8 +334,8 @@ precedence over `.env`: they are container paths, not preferences.
 Requires **Docker** only. No local Python, Node or database.
 
 ```bash
-git clone <repository-url>
-cd security-alert-analyst
+git clone https://github.com/sooovamm/Security-Alert-Analyst.git
+cd Security-Alert-Analyst
 cp .env.example .env          # optional — edit LLM_API_KEY to enable analysis
 docker compose up --build
 ```
@@ -755,3 +755,7 @@ Roughly in order of value returned per unit of work:
 9. **A Content-Security-Policy and security headers** on the served SPA.
 10. **Automated dependency scanning in CI.** `pip-audit` is pinned in
     `requirements-dev.txt` but nothing runs it on a schedule.
+
+## License
+
+[MIT](LICENSE)
