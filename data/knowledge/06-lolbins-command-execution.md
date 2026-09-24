@@ -1,3 +1,9 @@
+---
+title: Suspicious Command Execution
+category: Suspicious Command Execution
+source: internal-knowledge-base
+---
+
 # Living-off-the-Land Binaries and Suspicious Command Execution
 
 "Living off the land" means abusing trusted, signed, pre-installed system

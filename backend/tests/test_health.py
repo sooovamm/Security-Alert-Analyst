@@ -14,7 +14,10 @@ def test_readiness_reports_flags(client):
     resp = client.get("/health/ready")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "ok"
+    # Readiness always answers 200 — the service is up — but says "degraded"
+    # when a capability is missing, which it is here (no LLM key).
+    assert body["status"] == "degraded"
+    assert body["degraded_reasons"]
     # No key is set in the test environment -> must report False, not crash.
     assert body["llm_configured"] is False
     # data/ ships with the repo, so this should be True.

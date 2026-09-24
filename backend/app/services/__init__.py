@@ -1,1 +1,1 @@
-"""Services: orchestration of RAG + LLM into an assessment. Built in Sprint 3."""
+"""Services: orchestration of RAG + LLM into a validated, advisory assessment."""

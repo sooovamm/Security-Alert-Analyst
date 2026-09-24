@@ -1,8 +1,10 @@
 """Tests for the seed/import script and persistence."""
+import json
+
 from sqlalchemy import func, select
 
+from app.db import make_engine, make_session_factory
 from app.models.alert import AlertRecord
-from app.models.base import make_engine, make_session_factory
 from app.seed import load_alerts, seed
 
 
@@ -38,3 +40,45 @@ def test_seed_aborts_on_malformed_dataset(tmp_path):
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
         seed(database_url=db_url, alerts_path=bad)
+
+
+# --- CLI ---------------------------------------------------------------------
+
+def test_cli_seeds_the_database(tmp_path, capsys):
+    from app.seed import main
+
+    db_url = f"sqlite:///{(tmp_path / 'cli.db').as_posix()}"
+    assert main(["--database-url", db_url]) == 0
+    assert "Seeded dataset" in capsys.readouterr().out
+
+
+def test_cli_check_validates_without_writing(tmp_path, capsys):
+    from app.seed import main
+
+    db_file = tmp_path / "unwritten.db"
+    assert main(["--check", "--database-url", f"sqlite:///{db_file.as_posix()}"]) == 0
+    assert "Dataset valid" in capsys.readouterr().out
+    assert not db_file.exists()
+
+
+def test_cli_reports_failure_without_traceback(tmp_path, capsys):
+    from app.seed import main
+
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps([{"alert_id": "X"}]))  # missing required fields
+    exit_code = main(["--alerts", str(bad),
+                      "--database-url", f"sqlite:///{(tmp_path / 'x.db').as_posix()}"])
+    assert exit_code == 1
+    assert "Seed failed" in capsys.readouterr().err
+
+
+def test_cli_accepts_a_custom_dataset(tmp_path, capsys):
+    from app.seed import load_alerts, main
+
+    subset = [a.model_dump(mode="json") for a in load_alerts()[:3]]
+    dataset = tmp_path / "subset.json"
+    dataset.write_text(json.dumps(subset))
+    db_url = f"sqlite:///{(tmp_path / 'subset.db').as_posix()}"
+
+    assert main(["--alerts", str(dataset), "--database-url", db_url]) == 0
+    assert "3 alerts" in capsys.readouterr().out

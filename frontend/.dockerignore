@@ -1,3 +1,21 @@
+# Keep the build context small and make it impossible to bake a secret or a
+# host artefact into an image.
+
+# Secrets — never in an image. Vite inlines build-time values into the bundle.
+.env
+.env.*
+!.env.example
+
+# Installed and built on the host; the image builds its own.
 node_modules/
 dist/
-.env
+build/
+
+# Test tooling and artefacts are not part of the served bundle.
+e2e/
+playwright.config.js
+playwright-report/
+test-results/
+
+Dockerfile
+.dockerignore

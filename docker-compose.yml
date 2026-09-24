@@ -1,27 +1,123 @@
+# Full stack: API + dashboard. `docker compose up --build` is all that is
+# needed — no local Python, Node or database install.
+#
+# Two services is the whole architecture. Storage is SQLite in a named volume
+# (no database server), and the RAG index is an in-process FAISS index rebuilt
+# from data/knowledge/ at startup (no vector database).
+name: security-alert-analyst
+
 services:
+  # FastAPI application: alerts API, RAG retrieval, LLM analysis.
   backend:
-    build: ./backend
-    # Secrets and config come from .env (gitignored). Never baked into the image.
+    build:
+      context: ./backend
+      target: runtime
+    restart: unless-stopped
+
+    # Configuration and secrets come from .env at run time; nothing is baked
+    # into the image. The file is optional: without it the stack still starts
+    # and everything except /analyze-alert works.
     env_file:
-      - .env
+      - path: .env
+        required: false
+
+    # These two are container paths, not preferences, so they are set here —
+    # `environment` takes precedence over `env_file` and cannot be broken by a
+    # stale .env copied from a local (non-Docker) setup.
     environment:
       DATA_DIR: /app/data
-    volumes:
-      # Alerts + knowledge corpus, mounted read-only.
-      - ./data:/app/data:ro
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      # /app is root-owned and the process runs as non-root: the database has
+      # to live in the writable volume mounted at /app/var.
+      DATABASE_URL: sqlite:////app/var/app.db
 
-  frontend:
-    build: ./frontend
+    volumes:
+      # Alert dataset + knowledge corpus, read-only. Mounted rather than baked
+      # in so editing a knowledge file and calling /rag/reindex takes effect
+      # without a rebuild.
+      - ./data:/app/data:ro
+      # Database in a named volume: seeded alerts and stored assessments
+      # survive `docker compose down` and restarts.
+      - analyst-db:/app/var
+
+    # Host port is overridable (BACKEND_PORT=18000 docker compose up) for when
+    # 8000 is already taken. The container port never changes: nginx reaches the
+    # API as backend:8000 on the internal network, whatever the host mapping.
     ports:
-      - "8080:80"
+      - "${BACKEND_PORT:-8000}:8000"
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # First boot seeds the dataset and builds the RAG index before the port
+      # answers; failures inside this window do not count against `retries`.
+      start_period: 60s
+
+    security_opt:
+      - no-new-privileges:true
+
+  # nginx serving the built React bundle and reverse-proxying /api/ to the
+  # backend, so the browser only ever talks to one origin.
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+
+    # Wait for a backend that actually answers, not merely a started
+    # container: the dashboard loads alerts on its first render.
     depends_on:
       backend:
         condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    security_opt:
+      - no-new-privileges:true
+
+  # Backend test suite, opt-in via the "test" profile so it never starts with
+  # the stack. Dependencies come from the image, the code from the mount:
+  #   docker compose --profile test run --rm tests
+  tests:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: dev
+    # The repository, read-only — tests assert on files outside backend/
+    # (.env.example, frontend/src) as part of the security checks.
+    volumes:
+      - .:/repo:ro
+    environment:
+      ENVIRONMENT: test
+      DATA_DIR: /repo/data
+      # Throwaway database under /tmp, which is writable; never the real volume.
+      DATABASE_URL: sqlite:////tmp/analyst-tests.db
+      LLM_API_KEY: ""
+      OPENAI_API_KEY: ""
+      # The source mount is read-only, so every tool has to be told to put its
+      # cache somewhere writable, or it aborts before running a single check.
+      PYTEST_ADDOPTS: -p no:cacheprovider
+      RUFF_CACHE_DIR: /tmp/ruff-cache
+      MYPY_CACHE_DIR: /tmp/mypy-cache
+
+  # Frontend component/unit tests (vitest + jsdom), also opt-in:
+  #   docker compose --profile test run --rm frontend-tests
+  # They stub `fetch`, so no backend, database or network is involved. The
+  # sources are baked into the image, so pass --build after editing them.
+  frontend-tests:
+    profiles: ["test"]
+    build:
+      context: ./frontend
+      target: test
+
+volumes:
+  # Named, so it is not tied to a host path and survives container recreation.
+  analyst-db:

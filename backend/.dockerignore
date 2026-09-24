@@ -1,8 +1,23 @@
+# Keep the build context small and make it impossible to bake a secret or a
+# host artefact into an image.
+
+# Secrets — never in an image.
+.env
+.env.*
+*.env
+!.env.example
+
+# Virtualenvs and caches from a local (non-Docker) setup.
 .venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local database files.
+*.db
+
+# Not needed by any stage: the test suite is bind-mounted into the dev image.
 tests/
-.env

@@ -1,5 +1,6 @@
 # Secrets — never commit
 .env
+.env.*
 *.env
 !.env.example
 
@@ -20,6 +21,11 @@ backend/rag/index/
 node_modules/
 frontend/dist/
 frontend/build/
+# Playwright run artefacts: traces capture real API responses.
+frontend/test-results/
+frontend/playwright-report/
+# Vitest coverage output.
+frontend/coverage/
 
 # OS / editor
 .DS_Store

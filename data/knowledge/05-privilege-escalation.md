@@ -1,3 +1,9 @@
+---
+title: Privilege Escalation
+category: Privilege Escalation
+source: internal-knowledge-base
+---
+
 # Privilege-Escalation Techniques
 
 Privilege escalation (MITRE ATT&CK TA0004) is how an attacker moves from an

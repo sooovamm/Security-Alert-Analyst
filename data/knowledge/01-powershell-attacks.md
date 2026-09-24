@@ -1,3 +1,9 @@
+---
+title: PowerShell Security
+category: PowerShell Execution
+source: internal-knowledge-base
+---
+
 # PowerShell Attack Techniques and Indicators
 
 PowerShell is a legitimate administration tool, which is exactly why attackers

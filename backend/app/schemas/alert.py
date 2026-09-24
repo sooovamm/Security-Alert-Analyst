@@ -9,6 +9,7 @@ Note: this schema models raw *telemetry only*. It deliberately has no field for
 a verdict/classification/risk score — those are produced by the AI at analysis
 time and must never be part of alert input.
 """
+import re
 from datetime import datetime
 from enum import StrEnum
 
@@ -32,26 +33,46 @@ class AlertCategory(StrEnum):
     normal_admin = "Normal Administrative Activity"
 
 
+# Identifiers are echoed into logs and URLs, so they are restricted to a safe
+# character set: no whitespace, control characters or separators that could be
+# used for log injection or path confusion.
+ALERT_ID_RE = re.compile(r"^[A-Za-z0-9._:-]+$")
+
+# C0/C1 control characters (tab excepted) have no place in short identifier
+# fields and are a classic way to smuggle line breaks into a log record.
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
 class Alert(BaseModel):
     # extra="forbid" => unknown fields (e.g. a leaked "classification") are rejected.
     model_config = ConfigDict(extra="forbid")
 
-    alert_id: str = Field(min_length=1, max_length=64)
+    alert_id: str = Field(min_length=1, max_length=64, pattern=ALERT_ID_RE.pattern)
     timestamp: datetime
     hostname: str = Field(min_length=1, max_length=255)
     username: str = Field(min_length=1, max_length=255)
     source_ip: IPvAnyAddress
     process: str = Field(min_length=1, max_length=255)
-    command_line: str = Field(min_length=1)
+    command_line: str = Field(min_length=1, max_length=8192)
     severity: Severity
     category: AlertCategory
-    description: str = Field(min_length=1)
+    description: str = Field(min_length=1, max_length=4096)
 
     @field_validator("alert_id", "hostname", "username", "process", "command_line", "description")
     @classmethod
     def not_blank(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("must not be blank or whitespace-only")
+        return v
+
+    @field_validator("hostname", "username", "process")
+    @classmethod
+    def no_control_characters(cls, v: str) -> str:
+        # `command_line` and `description` may legitimately contain odd bytes
+        # (they are attacker-controlled evidence), so they are not restricted
+        # here — they are never written to a log line.
+        if _CONTROL_RE.search(v):
+            raise ValueError("must not contain control characters")
         return v
 
     @field_validator("timestamp")

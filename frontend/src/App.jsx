@@ -1,42 +1,98 @@
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { AlertDetail } from "./components/AlertDetail.jsx";
+import { AlertTable } from "./components/AlertTable.jsx";
+import { FilterBar } from "./components/FilterBar.jsx";
+import { ErrorPanel, StatusPanel } from "./components/StatusPanel.jsx";
+import { useAlertAnalysis } from "./hooks/useAlertAnalysis.js";
+import { useAlerts } from "./hooks/useAlerts.js";
+import { useReadiness } from "./hooks/useReadiness.js";
 
-// Foundation skeleton: proves the frontend loads AND can reach the backend.
-// The full alert dashboard (table of alerts + AI assessment) is built in the
-// frontend sprint. Kept deliberately minimal but functional, not decorative.
+const EMPTY_FILTERS = { q: "", severity: "", classification: "", category: "" };
+
 export default function App() {
-  const [health, setHealth] = useState(null);
-  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [selectedId, setSelectedId] = useState(null);
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(setHealth)
-      .catch((e) => setError(e.message));
-  }, []);
+  const { alerts, total, status, error, retry, refreshQuietly } = useAlerts(filters);
+  const readiness = useReadiness();
+
+  // Keep the verdict columns in step with a newly stored assessment.
+  const onAnalysed = useCallback(() => refreshQuietly(), [refreshQuietly]);
+  const analysis = useAlertAnalysis(selectedId, { onAnalysed });
+
+  const selectedAlert = useMemo(
+    () => alerts.find((alert) => alert.alert_id === selectedId) ?? null,
+    [alerts, selectedId],
+  );
+
+  const analysisEnabled = readiness ? readiness.llm_configured : true;
 
   return (
-    <main className="wrap">
-      <h1>AI-Powered Security Alert Analyst</h1>
-      <p className="subtitle">Project foundation — Sprint 1</p>
+    <div className="app">
+      <header className="app__header">
+        <div className="app__brand">
+          <h1>Security Alert Analyst</h1>
+          <p className="app__tagline">SOC triage console</p>
+        </div>
+        <p className="advisory" role="note">
+          <strong>Advisory only.</strong> Assessments are AI-generated, must be reviewed by an
+          analyst, and never trigger containment.
+        </p>
+      </header>
 
-      <section className="card">
-        <h2>Backend status</h2>
-        {health && (
-          <p className="ok">
-            ● {health.status} — {health.app} ({health.environment})
-          </p>
+      {readiness && !readiness.llm_configured && (
+        <div className="app__banner">
+          <StatusPanel variant="warning" title="AI analysis is unavailable">
+            <p>
+              The backend has no LLM API key configured. Alerts and previously stored
+              assessments are still available to review.
+            </p>
+          </StatusPanel>
+        </div>
+      )}
+
+      <main className={`app__main ${selectedAlert ? "app__main--split" : ""}`}>
+        <section className="queue" aria-label="Alert queue">
+          <FilterBar
+            filters={filters}
+            onChange={setFilters}
+            onReset={() => setFilters(EMPTY_FILTERS)}
+            resultCount={alerts.length}
+            totalCount={total}
+            busy={status === "loading"}
+          />
+
+          {status === "loading" && <StatusPanel variant="loading" title="Loading alerts…" />}
+
+          {status === "error" && (
+            <ErrorPanel error={error} onRetry={retry} title="Could not load alerts" />
+          )}
+
+          {status === "ready" && alerts.length === 0 && (
+            <StatusPanel variant="empty" title="No alerts match these filters">
+              <p>Adjust the search term or clear the filters to see the full queue.</p>
+            </StatusPanel>
+          )}
+
+          {status === "ready" && alerts.length > 0 && (
+            <AlertTable alerts={alerts} selectedId={selectedId} onSelect={setSelectedId} />
+          )}
+        </section>
+
+        {selectedAlert && (
+          <aside className="detail-pane" aria-label="Alert details">
+            <AlertDetail
+              alert={selectedAlert}
+              analysis={analysis.analysis}
+              status={analysis.status}
+              error={analysis.error}
+              onAnalyze={analysis.runAnalysis}
+              onClose={() => setSelectedId(null)}
+              analysisEnabled={analysisEnabled}
+            />
+          </aside>
         )}
-        {error && <p className="err">● cannot reach backend: {error}</p>}
-        {!health && !error && <p className="muted">checking…</p>}
-      </section>
-
-      <p className="muted">
-        Alert dashboard, AI classification, risk scores and recommended actions
-        arrive in later sprints.
-      </p>
-    </main>
+      </main>
+    </div>
   );
 }

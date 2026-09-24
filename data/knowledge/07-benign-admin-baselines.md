@@ -1,3 +1,9 @@
+---
+title: Benign Administrative Activity
+category: Normal Administrative Activity
+source: internal-knowledge-base
+---
+
 # Benign Administrative Activity Baselines
 
 A good analyst is calibrated against what *normal* looks like. Many alerts fire

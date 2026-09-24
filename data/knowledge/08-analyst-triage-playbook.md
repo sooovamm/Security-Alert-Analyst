@@ -1,3 +1,9 @@
+---
+title: Security Alert Triage
+category: General
+source: internal-knowledge-base
+---
+
 # Analyst Triage and Recommended-Action Playbook
 
 This playbook maps an assessment to a *recommended* analyst action. All actions

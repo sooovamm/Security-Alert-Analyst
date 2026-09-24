@@ -1,3 +1,9 @@
+---
+title: Suspicious Network Activity
+category: Suspicious Network Connection
+source: internal-knowledge-base
+---
+
 # Suspicious Network Connections and Command-and-Control
 
 Not every outbound connection is malicious; servers legitimately talk to update

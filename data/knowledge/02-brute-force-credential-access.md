@@ -1,3 +1,9 @@
+---
+title: Brute-force and Credential Access
+category: Brute-force Authentication
+source: internal-knowledge-base
+---
+
 # Brute-force and Credential-Access Patterns
 
 Authentication attacks (MITRE ATT&CK T1110) span brute forcing, password
